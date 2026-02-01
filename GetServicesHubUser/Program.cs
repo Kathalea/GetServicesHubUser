@@ -1,4 +1,13 @@
-﻿
+﻿/*
+ * Services Hub User Extractor
+ * 
+ * Outil d'extraction des utilisateurs depuis Microsoft Services Hub.
+ * Utilise WebView2 pour l'authentification SSO et récupère les données via l'API interne.
+ * 
+ * Auteur: [Votre nom]
+ * Version: 1.0
+ */
+
 using CsvHelper;
 using System.Globalization;
 using System.Text.Json;
@@ -6,14 +15,24 @@ using Microsoft.Extensions.Configuration;
 
 namespace GetServicesHubUser
 {
+    /// <summary>
+    /// Point d'entrée principal de l'application.
+    /// Gère le menu interactif, l'extraction des utilisateurs et l'export CSV.
+    /// </summary>
     public class Program
     {
+        /// <summary>
+        /// Point d'entrée de l'application. Requiert un thread STA pour WebView2.
+        /// </summary>
         [STAThread]
         public static void Main(string[] args)
         {
             MainAsync(args).GetAwaiter().GetResult();
         }
 
+        /// <summary>
+        /// Logique principale asynchrone : affiche le menu et lance l'extraction.
+        /// </summary>
         public static async Task MainAsync(string[] args)
         {
             // Chargement de la configuration à partir du fichier appsettings.json
@@ -21,7 +40,8 @@ namespace GetServicesHubUser
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .Build();   
-            AppSettings appSettings = config.Get<AppSettings>();
+            AppSettings appSettings = config.Get<AppSettings>()
+                ?? throw new InvalidOperationException("Configuration appsettings.json invalide ou manquante");
 
             // Charger les workspaces depuis le fichier local (%APPDATA%)
             var workspaceList = WorkspaceManager.LoadWorkspaces();
@@ -74,11 +94,11 @@ namespace GetServicesHubUser
             Console.ForegroundColor = ConsoleColor.DarkCyan;
             Console.Write("  [1] ");
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine("Extraire tous les workspaces");
+            Console.WriteLine("Extraire tous les utilisateurs de Services Hub");
             Console.ForegroundColor = ConsoleColor.DarkCyan;
             Console.Write("  [2] ");
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine("Extraire des workspaces spécifiques");
+            Console.WriteLine("Extraire les utilisateurs de workspaces spécifiques");
             Console.ForegroundColor = ConsoleColor.DarkCyan;
             Console.Write("  [3] ");
             Console.ForegroundColor = ConsoleColor.White;

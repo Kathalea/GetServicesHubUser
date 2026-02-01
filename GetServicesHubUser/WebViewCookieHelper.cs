@@ -1,26 +1,43 @@
 ﻿using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Extensions.Configuration;
-using System.Security.Policy;
 using System.Text.Json;
 
 namespace GetServicesHubUser
 {
+    /// <summary>
+    /// Helper pour gérer l'authentification WebView2 et les appels API Services Hub.
+    /// Utilise une session unique pour traiter plusieurs workspaces avec une seule authentification.
+    /// </summary>
     public class WebViewCookieHelper
     {
+        /// <summary>
+        /// Configuration de l'application chargée depuis appsettings.json
+        /// </summary>
         private static readonly AppSettings appSettings;
+
+        /// <summary>
+        /// Constructeur statique pour charger la configuration au démarrage
+        /// </summary>
         static WebViewCookieHelper()
         {
             var config = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .Build();
-            appSettings = config.Get<AppSettings>();
+            appSettings = config.Get<AppSettings>() 
+                ?? throw new InvalidOperationException("Configuration appsettings.json invalide ou manquante");
         }
 
         /// <summary>
-        /// Traite tous les workspaces avec une seule session WebView2 (une seule authentification)
+        /// Traite tous les workspaces avec une seule session WebView2 (une seule authentification).
+        /// Cette méthode ouvre une fenêtre WebView2, attend l'authentification de l'utilisateur,
+        /// puis parcourt tous les workspaces pour récupérer les données via l'API.
         /// </summary>
+        /// <param name="workspaces">Liste des workspaces à traiter</param>
+        /// <param name="loginPageUrlFormat">Format d'URL de la page de connexion (avec {0} pour l'ID workspace)</param>
+        /// <param name="apiUrlFormat">Format d'URL de l'API (avec {0} pour l'ID workspace)</param>
+        /// <returns>Liste des réponses API au format "WORKSPACE:nom|STATUS:code|json"</returns>
         public static Task<List<string>> GetAllWorkspacesDataAsync(List<WorkspaceInfo> workspaces, string loginPageUrlFormat, string apiUrlFormat)
         {
             var tcs = new TaskCompletionSource<List<string>>();
@@ -273,251 +290,5 @@ Données brutes (500 premiers caractères):
 
             return tcs.Task;
         }
-
-        public static Task<string?> GetAuthCookieAsync(string url, string cookieName)
-        {
-            var tcs = new TaskCompletionSource<string?>();
-            var thread = new Thread(() =>
-            {
-                var form = new Form();
-                form.Text = appSettings.WebView.FormTitle;
-                var webView = new WebView2 { Dock = DockStyle.Fill };
-                form.Controls.Add(webView);
-
-                form.Load += async (s, e) =>
-                {
-                    try
-                    {
-                        string userDataFolder = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    appSettings.WebView.UserDataFolder
-                    );
-                        var environment = await CoreWebView2Environment.CreateAsync(
-                         null, userDataFolder,
-                         new Microsoft.Web.WebView2.Core.CoreWebView2EnvironmentOptions
-                         {
-                             AllowSingleSignOnUsingOSPrimaryAccount = true
-                         });
-                        await webView.EnsureCoreWebView2Async(environment);
-                        webView.Source = new Uri(url);
-
-                        webView.NavigationCompleted += async (sender, args) =>
-                        {
-                            if (webView.Source.Host.Contains(appSettings.ServicesHub.BaseUrl))
-                            {
-                                Console.WriteLine("GetAuthCookieAsync - Navigation vers la page d'authentification...");
-                            }
-                            else
-                            {
-                                Console.WriteLine("GetAuthCookieAsync - Connexion vers la page des utilisateurs de Serviceshub...");
-                            }
-                            {
-                                var cookies = await webView.CoreWebView2.CookieManager.GetCookiesAsync(appSettings.ServicesHub.BaseUrl);
-                                var authCookie = cookies.FirstOrDefault(c => c.Name == cookieName);
-                                if (authCookie != null)
-                                {
-                                    tcs.SetResult(authCookie.Value);
-                                    form.Invoke(new Action(() => form.Close()));
-                                }
-                            }
-                        };
-                    }
-                    catch (Exception ex)
-                    {
-                        tcs.SetException(ex);
-                        form.Invoke(new Action(() => form.Close()));
-                    }
-                };
-                Application.Run(form);
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-
-            return tcs.Task;
-        
-        }
-        public static Task<string?> GetApiResponseAsync(string loginPageUrl, string apiUrl, string workspaceName, string workspaceId)
-        {
-            var tcs = new TaskCompletionSource<string?>();
-            var thread = new Thread(() =>
-            {
-                var divClass = appSettings.WebView.DivClass;
-                var form = new Form();
-                form.Text = appSettings.WebView.FormTitle;
-                var webView = new WebView2 { Dock = DockStyle.Fill };
-
-                form.Controls.Add(webView);
-
-                form.Load += async (s, e) =>
-                {
-                    try
-                    {
-                        string userDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), appSettings.WebView.UserDataFolder);
-                        var environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder, new CoreWebView2EnvironmentOptions
-                        {
-                            AllowSingleSignOnUsingOSPrimaryAccount = true
-                        });
-
-                        await webView.EnsureCoreWebView2Async(environment);
-
-                        Console.WriteLine("GetApiResponseAsync - Connexion vers la page des utilisateurs de Serviceshub...");
-                        webView.Source = new Uri(loginPageUrl);
-
-                        webView.NavigationCompleted += async (sender, args) =>
-                        {
-                            var url = webView.Source.AbsoluteUri;
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine("### GetApiResponseAsync : OK ");
-                            Console.ResetColor();
-                            Console.WriteLine("  ");
-                            Console.WriteLine("Lancement du fetch JS sur l'API...");
-
-
-                            // Injecte un JS qui attend la présence de la div
-                            string js = $@"
-                        (function() {{
-                            function waitForDiv() {{
-                                var div = document.querySelector('div.{appSettings.WebView.DivClass}');
-                                if (div) {{
-                                    window.chrome.webview.postMessage('DIV_PRESENT');
-                                }} else {{
-                                    setTimeout(waitForDiv, 500);
-                                }}
-                            }}
-                            waitForDiv();
-                        }})();
-                    ";
-                            await webView.CoreWebView2.ExecuteScriptAsync(js);
-                        };
-                        bool apiCalled = false;
-                        webView.CoreWebView2.WebMessageReceived += async (ss, ee) =>
-                        {
-                            var msg = ee.TryGetWebMessageAsString();
-                            if (msg == "DIV_PRESENT" && !apiCalled)
-                            {
-                                apiCalled = true;
-                                // Appel API après détection de la div avec retry 3 fois si échec de désérialisation JSON
-                                string jsFetch = $@"
-(async function() {{
-    const maxRetries = 3;
-    const workspaceName = '{workspaceName.Replace("'", "\\'")}';
-    let lastError = null;
-    let lastData = null;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {{
-        try {{
-            const response = await fetch('{apiUrl}', {{ credentials: 'include' }});
-            const data = await response.text();
-            lastData = data;
-            
-     
-            try {{
-                var obj = JSON.parse(data);
-                if (obj.values && Array.isArray(obj.values)) {{
-                    obj.values.forEach(u => u.WorkspaceName = workspaceName);
-                }}
-                const jsonData = JSON.stringify(obj);
-                window.chrome.webview.postMessage('STATUS:' + response.status + '|' + jsonData);
-                // DEBUG: Affiche la réponse API dans la fenêtre
-                // document.body.innerHTML = '<h2>Réponse API :</h2><pre>' + jsonData.replace(/</g, '&lt;') + '</pre>';
-                return; // Succès, on sort
-            }} catch (parseError) {{
-                lastError = parseError.message || parseError.toString();
-                console.log('Tentative ' + attempt + '/' + maxRetries + ' - Erreur de désérialisation JSON: ' + lastError);
-                if (attempt < maxRetries) {{
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Attendre 1 seconde avant retry
-                }}
-            }}
-        }} catch (fetchError) {{
-            lastError = fetchError.message || fetchError.toString();
-            console.log('Tentative ' + attempt + '/' + maxRetries + ' - Erreur fetch: ' + lastError);
-            if (attempt < maxRetries) {{
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }}
-        }}
-    }}
-    
-    // Après 3 tentatives échouées, envoyer l'erreur
-    const errorObj = {{
-        error: true,
-        workspace: workspaceName,
-        workspaceId: '{workspaceId}',
-        message: lastError,
-        rawData: lastData ? lastData.substring(0, 500) : null,
-        timestamp: new Date().toISOString()
-    }};
-    window.chrome.webview.postMessage('JSON_PARSE_ERROR:' + JSON.stringify(errorObj));
-}})();
-";
-                                await webView.CoreWebView2.ExecuteScriptAsync(jsFetch);
-                            }
-                            else if (msg != null && msg.StartsWith("FETCH_ERROR:"))
-                            {
-                                tcs.SetResult(msg);
-                            }
-                            else if (msg != null && msg.StartsWith("JSON_PARSE_ERROR:"))
-                            {
-                                // Erreur de désérialisation JSON après 3 tentatives - append au fichier de log
-                                try
-                                {
-                                    var errorJson = msg.Substring("JSON_PARSE_ERROR:".Length);
-                                    var errorInfo = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(errorJson);
-                                    
-                                    string errorFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\Downloads";
-                                    string errorFileName = "ErrorLog_ServicesHub.txt";
-                                    string errorFilePath = Path.Combine(errorFolder, errorFileName);
-                                    
-                                    string errorContent = $@"
-================================================================================
-Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}
-Workspace: {workspaceName}
-Workspace ID: {workspaceId}
-API URL: {apiUrl}
-Message d'erreur: {errorInfo?.GetValueOrDefault("message", "Inconnu")}
-Données brutes (500 premiers caractères):
-{errorInfo?.GetValueOrDefault("rawData", "N/A")}
-================================================================================
-";
-                                    File.AppendAllText(errorFilePath, errorContent);
-                                    Console.ForegroundColor = ConsoleColor.Yellow;
-                                    Console.WriteLine($"Erreur JSON pour {workspaceName} (ID: {workspaceId}) - Log ajouté: {errorFilePath}");
-                                    Console.ResetColor();
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine($"Impossible d'écrire dans le fichier de log: {ex.Message}");
-                                }
-                                tcs.SetResult(msg);
-                            }
-                            else if (msg != null && msg != "DIV_PRESENT")
-                            {
-                                // Réponse API reçue
-                                tcs.SetResult(msg);
-                                //Laisse ouvert pour éviter d'avoir à se recconecter
-                                // form.Invoke(new Action(() => form.Close()));
-                            }
-                            
-                        };
-
-                    }
-                    catch (Exception ex)
-                    {
-                        tcs.SetException(ex);
-                        //Laisse ouvert pour éviter d'avoir à se recconecter
-                        // form.Invoke(new Action(() => form.Close()));
-                    }
-                };
-
-
-                    
-
-                Application.Run(form);
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-
-            return tcs.Task;
-        }
-
     }
 }

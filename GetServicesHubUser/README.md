@@ -1,15 +1,24 @@
 # Services Hub User Extractor
 
-Outil d'extraction des utilisateurs depuis Microsoft Services Hub. Permet d'exporter la liste des contacts de vos workspaces vers un fichier CSV.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![.NET](https://img.shields.io/badge/.NET-8.0-purple)
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+
+> Outil d'extraction des utilisateurs depuis Microsoft Services Hub vers CSV
+
+<!--
+![Screenshot](docs/screenshot.png)
+Ajoutez une capture d'écran dans docs/screenshot.png pour l'afficher ici
+-->
 
 ## Fonctionnalités
 
-- Extraction automatique des utilisateurs via WebView2 (authentification SSO)
-- Support de multiples workspaces
+- Authentification SSO via WebView2 (une seule connexion pour tous les workspaces)
+- Support de multiples workspaces en une seule exécution
 - Filtrage automatique des contacts @microsoft.com
-- Gestion personnalisée de la liste des workspaces
+- Gestion personnalisée de la liste des workspaces (ajout, suppression, modification)
 - Export CSV des résultats
-- Retry automatique (3 tentatives) en cas d'erreur
+- Retry automatique (3 tentatives) en cas d'erreur réseau
 - Logs d'erreurs détaillés
 
 ## Prérequis
@@ -17,7 +26,7 @@ Outil d'extraction des utilisateurs depuis Microsoft Services Hub. Permet d'expo
 - Windows 10/11
 - .NET 8.0 ou supérieur
 - Microsoft Edge WebView2 Runtime (généralement déjà installé)
-- Accès à Services Hub avec un compte Microsoft
+- Accès à [Microsoft Services Hub](https://serviceshub.microsoft.com)
 
 ## Installation
 
@@ -236,6 +245,8 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 
 MIT License - Voir [LICENSE](LICENSE)
 
-## Auteur
+---
 
-Développé pour faciliter la gestion des contacts Services Hub.
+<p align="center">
+  <i>Développé pour faciliter la gestion des contacts Services Hub</i>
+</p>

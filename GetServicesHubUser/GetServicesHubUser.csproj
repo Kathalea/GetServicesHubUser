@@ -2,28 +2,32 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework> <!-- Remplace net8.0 par net8.0-windows -->
-    <UseWindowsForms>true</UseWindowsForms>           <!-- Ajoute cette ligne -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ApplicationIcon></ApplicationIcon>
+    <AssemblyTitle>Services Hub User Extractor</AssemblyTitle>
+    <Description>Outil d'extraction des utilisateurs Microsoft Services Hub</Description>
+    <Company>Microsoft</Company>
+    <Product>ServicesHubExtractor</Product>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- CSV export -->
     <PackageReference Include="CsvHelper" Version="32.0.1" />
-    <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
+    <!-- Configuration JSON -->
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.4" />
+    <!-- WebView2 pour authentification SSO -->
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3240.44" />
-    <PackageReference Include="Microsoft.Windows.Compatibility" Version="9.0.4" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-
   </ItemGroup>
 
-<ItemGroup>
-  <None Update="appsettings.json">
-    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  </None>
-</ItemGroup>
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
 </Project>

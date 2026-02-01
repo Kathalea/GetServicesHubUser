@@ -97,4 +97,4 @@ Vous pouvez ouvrir ce fichier avec Excel.
 
 ## Contact
 
-Pour toute question, contactez : [votre.email@microsoft.com]
+Pour toute question, contactez : [nora.droulin@microsoft.com]

@@ -25,16 +25,23 @@ Outil d'extraction des utilisateurs depuis Microsoft Services Hub. Permet d'expo
 
 1. Téléchargez la dernière release depuis [Releases](../../releases)
 2. Extrayez l'archive
-3. Lancez `GetServicesHubUser.exe`
+3. **Copiez `appsettings.template.json` en `appsettings.json`**
+4. Lancez `GetServicesHubUser.exe`
 
 ### Option 2 : Compiler depuis les sources
 
 ```powershell
 git clone https://github.com/Kathalea/GetServicesHubUser.git
 cd GetServicesHubUser
+
+# Créer votre fichier de configuration
+Copy-Item appsettings.template.json appsettings.json
+
 dotnet build
 dotnet run
 ```
+
+> **Important** : Le fichier `appsettings.json` contient vos données personnelles et n'est pas versionné. Utilisez le template fourni pour créer le vôtre.
 
 ## Utilisation
 

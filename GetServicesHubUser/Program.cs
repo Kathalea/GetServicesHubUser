@@ -76,6 +76,10 @@ namespace GetServicesHubUser
             Console.WriteLine($"Fichier workspaces : {WorkspaceManager.GetWorkspacesFilePath()}");
             Console.ResetColor();
 
+            // Boucle principale du menu
+            while (true)
+            {
+            // Réinitialiser les variables à chaque itération
             var working = false;
             List<Value> resultAllup = [];
 
@@ -103,6 +107,10 @@ namespace GetServicesHubUser
             Console.Write("  [3] ");
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine("Gérer les workspaces");
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.Write("  [Q] ");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Quitter");
             Console.WriteLine();
             
             // Afficher la liste des workspaces disponibles
@@ -178,19 +186,26 @@ namespace GetServicesHubUser
                         Console.ForegroundColor = ConsoleColor.Red;
                         Console.WriteLine("Aucun workspace sélectionné.");
                         Console.ResetColor();
-                        return;
+                        continue; // Retour au menu principal
                     }
                     break;
 
                 case "3":
                     ManageWorkspaces(ref workspaceList);
+                    continue; // Retour au menu principal
+
+                case "Q":
+                case "q":
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine("Au revoir !");
+                    Console.ResetColor();
                     return;
 
                 default:
                     Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine("Choix non reconnu.");
                     Console.ResetColor();
-                return;
+                    continue; // Retour au menu principal
             }
 
             // Lancer l'extraction
@@ -352,10 +367,11 @@ namespace GetServicesHubUser
                 }
                 Console.WriteLine();
                 Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.WriteLine("Appuyez sur une touche pour quitter...");
+                Console.WriteLine("Appuyez sur une touche pour revenir au menu...");
                 Console.ResetColor();
                 Console.ReadKey();
             }
+            } // Fin de la boucle while (menu principal)
         }
 
         /// <summary>
@@ -536,12 +552,7 @@ namespace GetServicesHubUser
                         break;
                 }
             }
-
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine("Appuyez sur une touche pour quitter...");
-            Console.ResetColor();
-            Console.ReadKey();
+            // Retour au menu principal
         }
     }
 }

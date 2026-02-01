@@ -6,6 +6,10 @@
 # Build results
 bin/
 obj/
+publish/
+
+# Distribution packages
+*.zip
 
 # NuGet
 *.nupkg

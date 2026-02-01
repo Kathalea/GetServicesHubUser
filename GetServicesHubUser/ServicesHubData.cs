@@ -1,4 +1,6 @@
-﻿namespace GetServicesHubUser
+﻿using System.Text.Json;
+
+namespace GetServicesHubUser
 {
     // Root myDeserializedClass = JsonConvert.DeserializeObject<Root>(myJsonResponse);
     public class AdditionalInformation
@@ -27,8 +29,8 @@
         public string status { get; set; }
         public string userType { get; set; }
         public DateTime? lastLoggedIn { get; set; }
-        public List<string> aadGroups { get; set; }
-        public List<string> userAADGroups { get; set; }
+        public List<JsonElement>? aadGroups { get; set; }
+        public List<JsonElement>? userAADGroups { get; set; }
         public string firstName { get; set; }
         public string lastName { get; set; }
         public string WorkspaceName { get; set; }

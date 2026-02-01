@@ -23,124 +23,290 @@ namespace GetServicesHubUser
                 .Build();   
             AppSettings appSettings = config.Get<AppSettings>();
 
-            var workspaceList = appSettings.Workspaces;
+            // Charger les workspaces depuis le fichier local (%APPDATA%)
+            var workspaceList = WorkspaceManager.LoadWorkspaces();
+
+            // Si la liste est vide, proposer d'importer depuis appsettings.json
+            if (workspaceList.Count == 0 && appSettings.Workspaces.Count > 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("Aucun workspace dans votre liste personnelle.");
+                Console.ResetColor();
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.Write("? ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Write($"Importer {appSettings.Workspaces.Count} workspace(s) depuis la configuration ? ");
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.Write("[Y/n] ");
+                Console.ResetColor();
+                var importAnswer = Console.ReadLine();
+                
+                if (importAnswer == "Y" || importAnswer == "y" || string.IsNullOrEmpty(importAnswer))
+                {
+                    int imported = WorkspaceManager.ImportFromAppSettings(appSettings.Workspaces);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine($"  ✓ {imported} workspace(s) importé(s)");
+                    Console.ResetColor();
+                    workspaceList = WorkspaceManager.LoadWorkspaces();
+                }
+            }
+
+            // Afficher le chemin du fichier de workspaces
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"Fichier workspaces : {WorkspaceManager.GetWorkspacesFilePath()}");
+            Console.ResetColor();
 
             var working = false;
             List<Value> resultAllup = [];
 
-
-            Console.WriteLine("Quel mode voulez-vous démarrer l'application - 1: Manuel - 2 : Automatique");
-            string? methode = Console.ReadLine();
-
-            if (methode == "1")
+            // Menu de sélection
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.WriteLine("       Services Hub User Extractor");
+            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.ResetColor();
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Que souhaitez-vous faire ?");
+            Console.ResetColor();
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.Write("  [1] ");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Extraire tous les workspaces");
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.Write("  [2] ");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Extraire des workspaces spécifiques");
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.Write("  [3] ");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Gérer les workspaces");
+            Console.WriteLine();
+            
+            // Afficher la liste des workspaces disponibles
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine("Workspaces disponibles :");
+            foreach (var ws in workspaceList)
             {
-                working = true;
-                //Méthode manuelle qui fonctionne
-
-                foreach (var ws in workspaceList)
-                {
-                    string loginPageUrl = string.Format(appSettings.Api.LoginPageUrlFormat, ws.Id);
-                    string apiUrl = string.Format(appSettings.Api.ApiUrlFormat, ws.Id);
-                    Console.WriteLine("Veuillez copier/coller la valeur du cookie d'authentification (.AspNet.Cookies) pour :" + ws.Name);
-                    Console.WriteLine(loginPageUrl);
-                    Console.WriteLine(apiUrl);
-                    string? authCookie = Console.ReadLine();
-                    Console.WriteLine("");
-                    Console.WriteLine("");
-                    if (string.IsNullOrEmpty(authCookie))
-                    {
-                        Console.WriteLine("Cookie non fourni, passage au workspace suivant.");
-                        continue;
-                    }
-                    Console.WriteLine("Appel API...");
-                    var result = await UsersProcessor.LoadUser(apiUrl, authCookie, ws.Name);
-                    foreach (var user in result.values ?? Enumerable.Empty<Value>())
-                    {
-                        resultAllup.Add(user);
-                    }
-                }
+                Console.WriteLine($"    • {ws.Name} ({ws.Id})");
             }
+            Console.ResetColor();
+            Console.WriteLine();
+            
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.Write("? ");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("Votre choix : ");
+            Console.ResetColor();
+            string? choix = Console.ReadLine()?.Trim();
 
-            if (methode == "2")
+            // Par défaut, option 1 si l'utilisateur appuie juste sur Entrée
+            if (string.IsNullOrEmpty(choix)) choix = "1";
+
+            List<WorkspaceInfo> selectedWorkspaces = new();
+            List<WorkspaceInfo> unknownWorkspaces = new(); // Pour stocker les workspaces inconnus qui fonctionnent
+
+            switch (choix)
             {
-                foreach (var ws in workspaceList)
-                {
-                    //Méthode automatique qui des fois ne fonctionne pas
-                    //var ws = workspaceList.First();
-                    string loginPageUrl = string.Format(appSettings.Api.LoginPageUrlFormat, ws.Id);
-                    string apiUrl = string.Format(appSettings.Api.ApiUrlFormat, ws.Id);
-                    Console.WriteLine("  ");
-                    Console.WriteLine("**********************************************************************************************");
-                    Console.WriteLine("***");
-                    Console.WriteLine("***   " + ws.Name + " - ID :" + ws.Id);
-                    Console.WriteLine("***");
-                    Console.WriteLine("**********************************************************************************************");
+                case "1":
+                    selectedWorkspaces = workspaceList.ToList();
+                    break;
 
+                case "2":
+                    Console.WriteLine();
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.WriteLine("Entrez les IDs des workspaces séparés par \";\"");
+                    Console.WriteLine("Exemple: db7f4202-bc75-47ae-a6a9-1ad6ec518c5c;5e6f9931-58a0-4daa-a9a5-6154680348d4");
+                    Console.ResetColor();
+                    Console.ForegroundColor = ConsoleColor.Magenta;
+                    Console.Write("? ");
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.Write("IDs : ");
+                    Console.ResetColor();
+                    string? idsInput = Console.ReadLine();
 
-                    working = true;
-                    string? automatiqueAuthCookie = await WebViewCookieHelper.GetAuthCookieAsync(loginPageUrl, appSettings.ServicesHub.CookieName);
-                    
-                    if (string.IsNullOrEmpty(automatiqueAuthCookie))
+                    if (!string.IsNullOrEmpty(idsInput))
                     {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine("Impossible de récupérer le cookie d'authentification.");
-                        Console.ResetColor();
-                        return;
-                    }
-                    else
-                    {
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine("### Connection réussit vers la page Users.");
-                        Console.ResetColor();
-                        string? apiResponse = await WebViewCookieHelper.GetApiResponseAsync(loginPageUrl, apiUrl, ws.Name);
-
-                        // Désérialisation de la réponse JSON en objet Root
-                        if (!string.IsNullOrEmpty(apiResponse))
+                        var ids = idsInput.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        foreach (var id in ids)
                         {
-                            // Retire le préfixe "STATUS:xxx|" s'il est présent
-                            var json = apiResponse;
-                            if (json.StartsWith("STATUS:"))
+                            var found = workspaceList.FirstOrDefault(w => w.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+                            if (found != null)
                             {
-                                var idx = json.IndexOf('|');
-                                if (idx >= 0) json = json.Substring(idx + 1);
+                                selectedWorkspaces.Add(found);
+                                Console.ForegroundColor = ConsoleColor.Green;
+                                Console.WriteLine($"  ✓ {found.Name}");
+                                Console.ResetColor();
                             }
-                            try
+                            else
                             {
-                                var root = JsonSerializer.Deserialize<Root>(json);
-                                var users = root?.values ?? Enumerable.Empty<Value>();
-                                foreach (var user in users)
-                                {
-                                    resultAllup.Add(user);
-                                }
-
-                                Console.WriteLine($"Nombre d'utilisateurs : {users.Count()}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.ForegroundColor = ConsoleColor.Red;
-                                Console.WriteLine("Erreur lors de la désérialisation : " + ex.Message);
+                                // Workspace inconnu - on l'ajoute quand même pour tester
+                                var unknownWs = new WorkspaceInfo($"Inconnu_{id.Substring(0, Math.Min(8, id.Length))}", id);
+                                selectedWorkspaces.Add(unknownWs);
+                                unknownWorkspaces.Add(unknownWs);
+                                Console.ForegroundColor = ConsoleColor.Yellow;
+                                Console.WriteLine($"  ? ID inconnu, sera testé : {id}");
                                 Console.ResetColor();
                             }
                         }
-                        else
+                    }
+
+                    if (selectedWorkspaces.Count == 0)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("Aucun workspace sélectionné.");
+                        Console.ResetColor();
+                        return;
+                    }
+                    break;
+
+                case "3":
+                    ManageWorkspaces(ref workspaceList);
+                    return;
+
+                default:
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("Choix non reconnu.");
+                    Console.ResetColor();
+                return;
+            }
+
+            // Lancer l'extraction
+            working = true;
+            List<string> successfulUnknownIds = new(); // IDs inconnus qui ont réussi
+            var apiResponses = await WebViewCookieHelper.GetAllWorkspacesDataAsync(
+                selectedWorkspaces, 
+                appSettings.Api.LoginPageUrlFormat, 
+                appSettings.Api.ApiUrlFormat);
+
+            foreach (var apiResponse in apiResponses)
+                {
+                    if (!string.IsNullOrEmpty(apiResponse))
+                    {
+                        var json = apiResponse;
+                        string workspaceName = "Inconnu";
+
+                        // Extraire le nom du workspace
+                        if (json.StartsWith("WORKSPACE:"))
                         {
-                            Console.WriteLine("Réponse vide, aucun utilisateur ajouté.");
+                            var wsEndIdx = json.IndexOf("|STATUS:");
+                            if (wsEndIdx > 10)
+                            {
+                                workspaceName = json.Substring(10, wsEndIdx - 10);
+                                json = json.Substring(wsEndIdx + 1); // Garde "STATUS:..."
+                            }
+                        }
+
+                        // Extraire le JSON après "STATUS:xxx|"
+                        if (json.StartsWith("STATUS:"))
+                        {
+                            var idx = json.IndexOf('|');
+                            if (idx >= 0) json = json.Substring(idx + 1);
+                        }
+
+                        try
+                        {
+                            var root = JsonSerializer.Deserialize<Root>(json);
+                            var users = root?.values ?? Enumerable.Empty<Value>();
+                            // Filtrer les contacts @microsoft.com
+                            var filteredUsers = users.Where(u => 
+                                string.IsNullOrEmpty(u.accountName) || 
+                                !u.accountName.EndsWith("@microsoft.com", StringComparison.OrdinalIgnoreCase));
+                            int excluded = users.Count() - filteredUsers.Count();
+                            foreach (var user in filteredUsers)
+                            {
+                                resultAllup.Add(user);
+                            }
+                            Console.ForegroundColor = ConsoleColor.DarkGray;
+                            Console.Write($"    └─ ");
+                            Console.ForegroundColor = ConsoleColor.White;
+                            Console.Write($"{filteredUsers.Count()} utilisateurs");
+                            if (excluded > 0)
+                            {
+                                Console.ForegroundColor = ConsoleColor.DarkYellow;
+                                Console.Write($" ({excluded} @microsoft.com exclus)");
+                            }
+                            Console.WriteLine();
+                            Console.ResetColor();
+
+                            // Si c'est un workspace inconnu qui a réussi, le marquer
+                            var unknownWs = unknownWorkspaces.FirstOrDefault(w => w.Name == workspaceName);
+                            if (unknownWs != null && filteredUsers.Any())
+                            {
+                                successfulUnknownIds.Add(unknownWs.Id);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine($"    └─ Erreur : {ex.Message}");
+                            Console.ForegroundColor = ConsoleColor.DarkGray;
+                            Console.WriteLine($"       {json.Substring(0, Math.Min(80, json.Length))}...");
+                            Console.ResetColor();
                         }
                     }
                 }
-            }
-            else
+
+            // Proposer d'ajouter les workspaces inconnus qui ont fonctionné
+            if (successfulUnknownIds.Count > 0)
             {
-                Console.WriteLine("J'ai rien compris merci de recommencer");
+                Console.WriteLine();
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"═══ {successfulUnknownIds.Count} workspace(s) inconnu(s) ont fonctionné ═══");
+                Console.ResetColor();
+                
+                foreach (var wsId in successfulUnknownIds)
+                {
+                    Console.WriteLine();
+                    Console.ForegroundColor = ConsoleColor.Magenta;
+                    Console.Write("? ");
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.Write($"Ajouter {wsId} aux workspaces connus ? ");
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.Write("[Y/n] ");
+                    Console.ResetColor();
+                    var addAnswer = Console.ReadLine();
+                    
+                    if (addAnswer == "Y" || addAnswer == "y")
+                    {
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.Write("? ");
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.Write("Nom du workspace : ");
+                        Console.ResetColor();
+                        var wsName = Console.ReadLine();
+                        
+                        if (!string.IsNullOrWhiteSpace(wsName))
+                        {
+                            if (WorkspaceManager.AddWorkspace(wsName, wsId))
+                            {
+                                Console.ForegroundColor = ConsoleColor.Green;
+                                Console.WriteLine($"  ✓ Workspace \"{wsName}\" ajouté à votre liste");
+                                Console.ResetColor();
+                            }
+                        }
+                    }
+                }
             }
 
             if (working)
             {
+                Console.WriteLine();
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"═══ Résumé : {resultAllup.Count} utilisateurs au total ═══");
+                Console.ResetColor();
+                Console.WriteLine();
                 Console.ForegroundColor = ConsoleColor.Magenta;
-                Console.WriteLine("Voulez-vous générer un fichier CSV ? Taper Y pour oui");
+                Console.Write("? ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Write("Générer un fichier CSV ? ");
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.Write("[Y/n] ");
                 Console.ResetColor();
                 var answer = Console.ReadLine();
-                if(answer == "Y")
+                if(answer == "Y" || answer == "y")
                     {
                     // Enregistrement des résultats dans un fichier CSV
                     string sMonth = DateTime.Now.ToString("MMyyyy");
@@ -158,11 +324,204 @@ namespace GetServicesHubUser
                         var writer = new CsvWriter(textWriter, CultureInfo.InvariantCulture);
                         writer.WriteRecords(resultAllup);
                     }
-                    Console.WriteLine("Export terminé.");
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.Write("✓ ");
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.WriteLine($"Export terminé : {csvPath}");
+                    Console.ResetColor();
                 }
-                Console.WriteLine("Appuyez sur une touche pour quitter.");
+                Console.WriteLine();
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine("Appuyez sur une touche pour quitter...");
+                Console.ResetColor();
                 Console.ReadKey();
             }
+        }
+
+        /// <summary>
+        /// Gestion des workspaces (ajout, suppression, modification)
+        /// </summary>
+        private static void ManageWorkspaces(ref List<WorkspaceInfo> workspaceList)
+        {
+            bool continueManaging = true;
+            while (continueManaging)
+            {
+                Console.WriteLine();
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("═══ Gestion des workspaces ═══");
+                Console.ResetColor();
+                Console.WriteLine();
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.Write("  [A] ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Ajouter un workspace");
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.Write("  [S] ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Supprimer un workspace");
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.Write("  [M] ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Modifier un workspace");
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.Write("  [L] ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Lister les workspaces");
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.Write("  [Q] ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Quitter la gestion");
+                Console.WriteLine();
+
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.Write("? ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Write("Action : ");
+                Console.ResetColor();
+                var action = Console.ReadLine()?.Trim().ToUpper();
+
+                switch (action)
+                {
+                    case "A":
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.Write("? ");
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.Write("Nom du workspace : ");
+                        Console.ResetColor();
+                        var newName = Console.ReadLine();
+
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.Write("? ");
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.Write("ID du workspace : ");
+                        Console.ResetColor();
+                        var newId = Console.ReadLine();
+
+                        if (!string.IsNullOrWhiteSpace(newName) && !string.IsNullOrWhiteSpace(newId))
+                        {
+                            if (WorkspaceManager.AddWorkspace(newName, newId))
+                            {
+                                Console.ForegroundColor = ConsoleColor.Green;
+                                Console.WriteLine($"  ✓ Workspace \"{newName}\" ajouté");
+                                Console.ResetColor();
+                                workspaceList = WorkspaceManager.LoadWorkspaces();
+                            }
+                        }
+                        break;
+
+                    case "S":
+                        Console.WriteLine();
+                        Console.ForegroundColor = ConsoleColor.DarkGray;
+                        Console.WriteLine("Workspaces actuels :");
+                        for (int i = 0; i < workspaceList.Count; i++)
+                        {
+                            Console.WriteLine($"  [{i + 1}] {workspaceList[i].Name} ({workspaceList[i].Id})");
+                        }
+                        Console.ResetColor();
+                        Console.WriteLine();
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.Write("? ");
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.Write("Numéro à supprimer : ");
+                        Console.ResetColor();
+                        if (int.TryParse(Console.ReadLine(), out int delIndex) && delIndex >= 1 && delIndex <= workspaceList.Count)
+                        {
+                            var wsToDelete = workspaceList[delIndex - 1];
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.Write($"  Supprimer \"{wsToDelete.Name}\" ? [Y/n] ");
+                            Console.ResetColor();
+                            if (Console.ReadLine()?.Trim().ToUpper() == "Y")
+                            {
+                                if (WorkspaceManager.RemoveWorkspace(wsToDelete.Id))
+                                {
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine($"  ✓ Workspace supprimé");
+                                    Console.ResetColor();
+                                    workspaceList = WorkspaceManager.LoadWorkspaces();
+                                }
+                            }
+                        }
+                        break;
+
+                    case "M":
+                        Console.WriteLine();
+                        Console.ForegroundColor = ConsoleColor.DarkGray;
+                        Console.WriteLine("Workspaces actuels :");
+                        for (int i = 0; i < workspaceList.Count; i++)
+                        {
+                            Console.WriteLine($"  [{i + 1}] {workspaceList[i].Name} ({workspaceList[i].Id})");
+                        }
+                        Console.ResetColor();
+                        Console.WriteLine();
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.Write("? ");
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.Write("Numéro à modifier : ");
+                        Console.ResetColor();
+                        if (int.TryParse(Console.ReadLine(), out int modIndex) && modIndex >= 1 && modIndex <= workspaceList.Count)
+                        {
+                            var wsToModify = workspaceList[modIndex - 1];
+                            Console.ForegroundColor = ConsoleColor.Magenta;
+                            Console.Write("? ");
+                            Console.ForegroundColor = ConsoleColor.White;
+                            Console.Write($"Nouveau nom [{wsToModify.Name}] : ");
+                            Console.ResetColor();
+                            var modName = Console.ReadLine();
+
+                            Console.ForegroundColor = ConsoleColor.Magenta;
+                            Console.Write("? ");
+                            Console.ForegroundColor = ConsoleColor.White;
+                            Console.Write($"Nouvel ID [{wsToModify.Id}] : ");
+                            Console.ResetColor();
+                            var modId = Console.ReadLine();
+
+                            // Supprimer l'ancien et ajouter le nouveau
+                            WorkspaceManager.RemoveWorkspace(wsToModify.Id);
+                            WorkspaceManager.AddWorkspace(
+                                string.IsNullOrWhiteSpace(modName) ? wsToModify.Name : modName,
+                                string.IsNullOrWhiteSpace(modId) ? wsToModify.Id : modId
+                            );
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine($"  ✓ Workspace modifié");
+                            Console.ResetColor();
+                            workspaceList = WorkspaceManager.LoadWorkspaces();
+                        }
+                        break;
+
+                    case "L":
+                        Console.WriteLine();
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        Console.WriteLine($"═══ {workspaceList.Count} workspace(s) ═══");
+                        Console.ResetColor();
+                        foreach (var ws in workspaceList)
+                        {
+                            Console.ForegroundColor = ConsoleColor.White;
+                            Console.Write($"  • {ws.Name}");
+                            Console.ForegroundColor = ConsoleColor.DarkGray;
+                            Console.WriteLine($" ({ws.Id})");
+                        }
+                        Console.ResetColor();
+                        break;
+
+                    case "Q":
+                    case "":
+                    case null:
+                        continueManaging = false;
+                        break;
+
+                    default:
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine("  Action non reconnue");
+                        Console.ResetColor();
+                        break;
+                }
+            }
+
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine("Appuyez sur une touche pour quitter...");
+            Console.ResetColor();
+            Console.ReadKey();
         }
     }
 }

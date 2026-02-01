@@ -14,3 +14,10 @@ packages/
 # OS files
 Thumbs.db
 .DS_Store
+
+# Configuration with sensitive data
+appsettings.json
+!appsettings.template.json
+
+# User data
+%APPDATA%/ServicesHubExtractor/
